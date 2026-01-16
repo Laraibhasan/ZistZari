@@ -6,8 +6,10 @@ const Footer = () => {
   return (
     <div>
       <div className="flex flex-col sm:grid grid-cols-[3fr_1fr_1fr] gap-14 my-10 mt-40">
-        <div>
-          <img src={assets.Component_12_1} className="mb-16 w-[260px] ml-12" alt="" />
+        {/* MODIFIED: Added flex flex-col items-center to center content horizontally */}
+        <div className="flex flex-col items-center">
+          {/* REMOVED: ml-12 class from the image */}
+          <img src={assets.Component_12_1} className="mb-16 w-[260px]" alt="" />
         </div>
         <div>
           <p className="text-xl font-medium mb-5">COMPANY</p>

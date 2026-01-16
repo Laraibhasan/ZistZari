@@ -1,0 +1,199 @@
+import React, { useContext, useState } from "react";
+import Title from "../components/Title";
+import CartTotal from "../components/CartTotal";
+import { assets } from "../assets/assets";
+import { ShopContext } from "../context/ShopContext";
+import axios from "axios";
+import { toast } from "react-toastify";
+
+const PlaceOrder = () => {
+
+  const [method,setMethod] = useState('COD');
+
+  const {navigate, backend_url, token, cartItems, setCartItems, getCartAmount, delivery_fee, products} = useContext(ShopContext);
+
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    street: '',
+    city: '',
+    state: '',
+    zipcode: '',
+    country: '',
+    phone: ''
+  });
+
+  const onChangeHandler = (event) => {
+    const name = event.target.name;
+    const value = event.target.value;
+    setFormData(data => ({ ...data, [name]: value }));
+  };
+
+  const onSubmitHandler = async(event) => {
+    event.preventDefault();
+    try {
+      let orderItems=[]
+
+      for (const items in cartItems) {
+        for(const item in cartItems[items]){
+          if (cartItems[items][item] > 0) {
+            const itemInfo = structuredClone(products.find(product => product._id === items));
+            if (itemInfo) {
+              itemInfo.size=item
+              itemInfo.quantity=cartItems[items][item]
+              orderItems.push(itemInfo)
+            }
+          }
+        }
+      }
+
+      let orderData = {
+        address: formData,
+        items: orderItems,
+        amount: getCartAmount() + delivery_fee
+      }
+
+      switch (method) {
+        case 'COD':
+          // Handle Cash on Delivery
+          const response = await axios.post(backend_url + "/api/order/place", orderData, {
+            headers: {token}
+          });
+          if (response.data.success) {
+            setCartItems({});
+            navigate("/orders");
+          } else{
+            toast.error(response.data.message || "Something went wrong");
+          }
+          break;
+
+        case 'stripe':
+          // Handle Stripe Payment
+          const stripeResponse = await axios.post(backend_url + "/api/order/stripe", orderData, {
+            headers: {token}
+          });
+          if (stripeResponse.data.success) {
+            const {session_url}=stripeResponse.data;
+            window.location.replace(session_url);
+          } else {
+            toast.error(stripeResponse.data.message || "Something went wrong");
+          }
+          break;
+
+        case 'paypal':
+          const paypalResponse = await axios.post(backend_url + "/api/order/paypal", orderData, {
+            headers: { token }
+          });
+          if (paypalResponse.data.success) {
+            // PayPal redirect URL is usually called 'session_url' in your controller structure
+            const { session_url } = paypalResponse.data;
+            window.location.replace(session_url);
+          } else {
+            toast.error(paypalResponse.data.message || "Something went wrong");
+          }
+          break;
+
+        default:
+          break;
+      }
+
+    } catch (error) {
+      toast.error(error.message || "Something went wrong");
+    }
+  };
+
+  return (
+    <form onSubmit={onSubmitHandler} className="flex flex-col sm:flex-row justify-between gap-4 pt-5 sm:pt-14 min-h-[80vh] border-t">
+      {/* Left side ---- */}
+      <div className="flex flex-col gap-4 w-full sm:max-w-[480px]">
+        <div className="text-xl sm:text-2xl my-3">
+          <Title text1={"DELIVERY"} text2={"INFORMATION"} />
+        </div>
+        <div className="flex gap-3">
+          <input required onChange={onChangeHandler} name='firstName' value={formData.firstName}            type="text"
+            placeholder="First name"
+            className="border border-gray-300 rounded py-1.5 px-2 w-full"
+          />
+
+          <input required onChange={onChangeHandler} name='lastName' value={formData.lastName} 
+            type="text"
+            placeholder="Last name"
+            className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
+          />
+        </div>
+        <input required onChange={onChangeHandler} name='email' value={formData.email}
+          type="text"
+          placeholder="Email address"
+          className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
+        />
+        <input required onChange={onChangeHandler} name='street' value={formData.street}
+          type="text"
+          placeholder="Street"
+          className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
+        />
+        <div className="flex gap-3">
+          <input required onChange={onChangeHandler} name='city' value={formData.city}
+            type="text"
+            placeholder="City"
+            className="border border-gray-300 rounded py-1.5 px-2 w-full"
+          />
+
+          <input required onChange={onChangeHandler} name='state' value={formData.state}
+            type="text"
+            placeholder="State"
+            className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
+          />
+        </div>
+        <div className="flex gap-3">
+          <input required onChange={onChangeHandler} name='zipcode' value={formData.zipcode}
+            type="number"
+            placeholder="Zipcode"
+            className="border border-gray-300 rounded py-1.5 px-2 w-full"
+          />
+
+          <input required onChange={onChangeHandler} name='country' value={formData.country}
+            type="text"
+            placeholder="Country"
+            className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
+          />
+        </div>
+        <input required onChange={onChangeHandler} name='phone' value={formData.phone}
+          type="number"
+          placeholder="Phone"
+          className="border border-gray-300 rounded py-1.5 px-2 w-full"
+        />
+      </div>
+
+      {/* right side ---- */}
+      <div className="mt-8">
+        <div className="mt-8 min-w-80">
+          <CartTotal />
+        </div>
+        <div className="mt-12">
+          <Title text1={"PAYMENT"} text2={"METHOD"} />
+          {/* payment method selection */}
+          <div className="flex gap-3 flex-col lg:flex-row">
+            <div onClick={()=>setMethod('stripe')} className="flex items-center gap-3 border p-2 px-3 cursor-pointer">
+              <p className={`min-w-3.5 h-3.5 border rounded-full ${method === 'stripe' ? 'bg-green-400' : ''}`}></p>
+              <img src={assets.stripe_logo} alt="" className="h-5 mx-4" />
+            </div>
+          <div onClick={() => setMethod('paypal')} className="flex items-center gap-3 border p-2 px-3 cursor-pointer">
+            <p className={`min-w-3.5 h-3.5 border rounded-full ${method === 'paypal' ? 'bg-green-400' : ''}`}></p>
+            {/* Increased height to h-8 and added w-auto */}
+            <img src={assets.paypal_logo} alt="PayPal" className="h-8 w-auto mx-4 object-contain" />
+          </div>
+            <div onClick={()=>setMethod('COD')} className="flex items-center gap-3 border p-2 px-3 cursor-pointer">
+              <p className={`min-w-3.5 h-3.5 border rounded-full ${method === 'COD' ? 'bg-green-400' : ''}`}></p>
+              <p className="text-gray-500 text-sm font-medium mx-4">CASH ON DELIVERY</p>
+            </div>
+          </div>
+          <div className="w-full text-end mt-8">
+            <button type='submit' className="bg-black text-white px-16 py-3 text-sm">PLACE ORDER</button>
+          </div>
+        </div>
+      </div>
+    </form>
+  );
+}
+export default PlaceOrder;
